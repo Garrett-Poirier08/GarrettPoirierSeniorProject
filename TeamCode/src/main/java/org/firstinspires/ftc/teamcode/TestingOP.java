@@ -11,8 +11,8 @@ import com.qualcomm.robotcore.hardware.Servo;
 @Config
 @TeleOp(name="testing op")
 public class TestingOP extends LinearOpMode {
-    private Servo A = null;
-    private Servo B = null;
+    private Servo b = null;
+    private Servo a = null;
 
     private Servo C = null;
     private Servo R = null;
@@ -21,20 +21,18 @@ public class TestingOP extends LinearOpMode {
 
     //all messurments in inches
     private double originX = 0;
-    private double originY = 3; // in inches
+    private double originY = 2.876; // in inches
     private double originZ = 0;
     private double netLength = 0;//net length
 
-    private double lengthB = 5;//in inches
+    private double lengthC = 5;//in inches
 
-    private double lengthC = 3.25;//in inches need to check cad for more accurate value
+    private double lengthA = 3.343;//in inches
 
-
-    private double angleB = 0;
-
-    private double angleC = 0;
 
     private double angleA = 0;
+
+    private double angleB = 0;
 
     private double Theta = 0;
 
@@ -48,8 +46,8 @@ public class TestingOP extends LinearOpMode {
     private double targetZ = 0;
     private double clawAngle;
     private boolean toggle = false;
-    private double servoAInput;
     private double servoBInput;
+    private double servoAInput;
     private double servoCInput;
 
     private boolean Amove = false;
@@ -57,24 +55,25 @@ public class TestingOP extends LinearOpMode {
     private boolean Bmove = false;
 
     private boolean Cmove = false;
+    private double clawOffset = 2;
 
 
     @Override
     public void runOpMode() {
-        A = hardwareMap.get(Servo.class,"A");
-        B = hardwareMap.get(Servo.class,"B");
+        b = hardwareMap.get(Servo.class,"A");
+        a = hardwareMap.get(Servo.class,"B");
         C = hardwareMap.get(Servo.class,"C");
         R = hardwareMap.get(Servo.class,"R");
         claw = hardwareMap.get(Servo.class,"Claw");
-        A.setDirection(Servo.Direction.REVERSE);
-        B.setDirection(Servo.Direction.REVERSE);
-        C.setDirection(Servo.Direction.FORWARD);
+        b.setDirection(Servo.Direction.REVERSE);
+        a.setDirection(Servo.Direction.REVERSE);
+        C.setDirection(Servo.Direction.REVERSE);
         R.setDirection(Servo.Direction.REVERSE);
         claw.setDirection(Servo.Direction.FORWARD);
         R.setPosition(Math.toRadians(90)/Math.PI -.25);
         claw.setPosition(0);
-        A.setPosition(.5);
-        B.setPosition(.5);
+        b.setPosition(.5);
+        a.setPosition(.5);
         C.setPosition(0);
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
         telemetry.addData("Status", "Initialized");
@@ -106,7 +105,7 @@ public class TestingOP extends LinearOpMode {
                 targetZ-=0.5;
             }
             if(gamepad1.aWasPressed()){
-                Solve(-90);
+                Solve(-90,3);
             }
             if(gamepad1.yWasPressed()){
                 claw.setPosition(1);
@@ -117,59 +116,83 @@ public class TestingOP extends LinearOpMode {
             telemetry.addData("targetX", targetX);
             telemetry.addData("targetY", targetY);
             telemetry.addData("targetZ", targetZ);
-            telemetry.addData("angleA", A.getPosition());
-            telemetry.addData("angleB", B.getPosition());
+            telemetry.addData("angleA", b.getPosition());
+            telemetry.addData("angleB", a.getPosition());
             telemetry.addData("angleC", C.getPosition());
             telemetry.addData("angleR", R.getPosition());
             telemetry.addData("claw", claw.getPosition());
+            telemetry.addData("AngleB", Math.toDegrees(angleB));
             telemetry.addData("AngleA", Math.toDegrees(angleA));
-            telemetry.addData("AngleB", Math.toDegrees(angleB+Theta));
+            telemetry.addData("net AngleA", Math.toDegrees(angleA +Theta));
             telemetry.addData("Claw angle", Math.toDegrees(clawAngle));
             telemetry.update();
         }
 
     }
-    public void Solve(double endAngle){
+    public void Solve(double endAngle, double lengthClaw) { // Added lengthClaw
         double dx = targetX - originX;
         double dy = targetY - originY;
         double dz = targetZ - originZ;
-        double groundDist = Math.sqrt(dx * dx + dz * dz);
 
-        netLength = Math.sqrt(Math.pow(groundDist,2) + Math.pow(dy,2));//gives net distance from origin to target point
-        angleA = Math.acos((Math.pow(netLength,2)-Math.pow(lengthB,2)-Math.pow(lengthC,2))/(-2*lengthB*lengthC));//law of cosines
-        angleB = Math.asin((lengthC*Math.sin(angleA))/ netLength);//law of sines
-        Theta = Math.atan2(dy, groundDist);
+        // 1. Calculate base rotation
         angleR = Math.atan2(dx, dz);
-        double forearmAngle = angleB - (Math.PI - angleA);
-        clawAngle = Math.toRadians(endAngle) - forearmAngle;
-        R.setPosition(angleR/Math.PI -.2);
-        servoAInput = (angleA/Math.PI);
-        servoBInput = (angleB+Theta)/Math.toRadians(270)  - .25;
-        servoCInput = clawAngle / Math.PI;
+
+        // 2. Initial ground distance to TARGET
+        double targetGroundDist = Math.sqrt(dx * dx + dz * dz);
+        double endAngleRad = Math.toRadians(endAngle);
+
+        // 3. WRIST DECOUPLING: Step backward from target to find the wrist joint center
+        double wristGroundDist = targetGroundDist - (lengthClaw * Math.cos(endAngleRad));
+        double wristY = dy - (lengthClaw * Math.sin(endAngleRad)); // Using dy relative to origin
+
+        // 4. Calculate IK based on the WRIST position, not the target position
+        netLength = Math.sqrt(Math.pow(wristGroundDist, 2) + Math.pow(wristY, 2));
+
+        // prevents NaN errors
+        if (netLength > (lengthA + lengthC)) {
+            netLength = lengthA + lengthC - 0.001;
+        }
+
+        // Law of Cosines
+        angleB = Math.acos((Math.pow(netLength, 2) - Math.pow(lengthC, 2) - Math.pow(lengthA, 2)) / (-2 * lengthC * lengthA));
+        angleA = Math.acos((Math.pow(lengthA, 2) - Math.pow(lengthC, 2) - Math.pow(netLength, 2)) / (-2 * lengthC * netLength));
+
+        // Angle to the wrist from horizontal
+        Theta = Math.atan2(wristY, wristGroundDist);
+
+        // 5. Correct absolute forearm angle (subtracting PI)
+        double forearmAngleAbs = (Theta + angleA + angleB) - Math.PI;
+
+        // 6. Calculate required claw joint angle to maintain the desired endAngle
+        // Wrist Joint Angle = Desired Absolute Angle - Current Forearm Absolute Angle
+        clawAngle = endAngleRad - forearmAngleAbs;
+
+        // --- Servo Mappings ---
+        R.setPosition(angleR / Math.PI - 0.2);
+
+        servoBInput = (angleB / Math.PI);
+        servoAInput = (Theta + angleA) / Math.toRadians(270); // Keeping your arbitrary mounting numbers
+
+        // You may need to tweak the sign or offset of servoCInput depending on how your wrist servo is physically mounted
+        servoCInput = Math.abs(clawAngle)/ Math.toRadians(190); // +0.5 assumes 90 degrees is the straight/neutral position
+
         Amove = true;
         Bmove = true;
         Cmove = true;
-        /*
-        B.setPosition((angleB+Theta)/Math.toRadians(270)  - .02);
-        sleep(1000);
-        C.setPosition(clawAngle / Math.PI);
-        sleep(500);
-        A.setPosition(angleA/Math.PI - .52);//puts it into 0 to 1 to mirror realife will needed to be changed based on mounting
-
-         */
     }
     public void ThreadA(){
         while(opModeIsActive()) {
             if (Amove) {
-                while(!(A.getPosition()<servoAInput+.01 && A.getPosition()>servoAInput-.01)){
-                    if(A.getPosition() < servoAInput){
-                        A.setPosition(A.getPosition() + .01);
+                while(!(b.getPosition()< servoBInput +.01 && b.getPosition()> servoBInput -.01)){
+                    if(b.getPosition() < servoBInput){
+                        b.setPosition(b.getPosition() + .01);
                     }
                     else{
-                        A.setPosition(A.getPosition() - .01);
+                        b.setPosition(b.getPosition() - .01);
                     }
                     sleep(50);
                 }
+                b.setPosition(servoBInput);
                 Amove = false;
             }
             sleep(50);
@@ -178,15 +201,16 @@ public class TestingOP extends LinearOpMode {
     public void ThreadB(){
         while(opModeIsActive()) {
             if (Bmove) {
-                while(!(B.getPosition()<servoBInput+.01 && B.getPosition()>servoBInput-.01)){
-                    if(B.getPosition() < servoBInput){
-                        B.setPosition(B.getPosition() + .01);
+                while(!(a.getPosition()< servoAInput +.01 && a.getPosition()> servoAInput -.01)){
+                    if(a.getPosition() < servoAInput){
+                        a.setPosition(a.getPosition() + .01);
                     }
                     else{
-                        B.setPosition(B.getPosition() - .01);
+                        a.setPosition(a.getPosition() - .01);
                     }
                     sleep(50);
                 }
+                a.setPosition(servoAInput);
                 Bmove = false;
             }
             sleep(50);
@@ -205,13 +229,11 @@ public class TestingOP extends LinearOpMode {
                     }
                     sleep(50);
                 }
+                C.setPosition(servoCInput);
                 Cmove = false;
             }
             sleep(50);
         }
 
     }
-
-
-
 }
