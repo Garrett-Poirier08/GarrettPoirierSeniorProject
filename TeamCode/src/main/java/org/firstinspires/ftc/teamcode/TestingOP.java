@@ -161,7 +161,7 @@ public class TestingOP extends LinearOpMode {
         Theta = Math.atan2(wristY, wristGroundDist);
 
         // 5. Correct absolute forearm angle (subtracting PI)
-        double forearmAngleAbs = (Theta + angleA + angleB) - Math.PI;
+        double forearmAngleAbs = Math.PI - (Theta + angleA + angleB);
 
         // 6. Calculate required claw joint angle to maintain the desired endAngle
         // Wrist Joint Angle = Desired Absolute Angle - Current Forearm Absolute Angle
