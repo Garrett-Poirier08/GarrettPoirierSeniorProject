@@ -161,20 +161,20 @@ public class TestingOP extends LinearOpMode {
         Theta = Math.atan2(wristY, wristGroundDist);
 
         // 5. Correct absolute forearm angle (subtracting PI)
-        double forearmAngleAbs = Math.PI - (Theta + angleA + angleB);
+        double forearmAngleAbs = (Theta + angleA + angleB) - Math.toRadians(180);
 
         // 6. Calculate required claw joint angle to maintain the desired endAngle
         // Wrist Joint Angle = Desired Absolute Angle - Current Forearm Absolute Angle
         clawAngle = endAngleRad - forearmAngleAbs;
 
         // --- Servo Mappings ---
-        R.setPosition(angleR / Math.PI - 0.2);
+        R.setPosition((Math.toRadians(90) + angleR) / Math.PI - 0.25);
 
         servoBInput = (angleB / Math.PI);
         servoAInput = (Theta + angleA) / Math.toRadians(270); // Keeping your arbitrary mounting numbers
 
         // You may need to tweak the sign or offset of servoCInput depending on how your wrist servo is physically mounted
-        servoCInput = Math.abs(clawAngle)/ Math.toRadians(190); // +0.5 assumes 90 degrees is the straight/neutral position
+        servoCInput = Math.abs(clawAngle)/ Math.toRadians(183); // +0.5 assumes 90 degrees is the straight/neutral position
 
         Amove = true;
         Bmove = true;
