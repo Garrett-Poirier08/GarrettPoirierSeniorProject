@@ -134,14 +134,14 @@ public class TestingOP extends LinearOpMode {
         double dy = targetY - originY;
         double dz = targetZ - originZ;
 
-        // 1. Calculate base rotation
+        // base rotation
         angleR = Math.atan2(dx, dz);
 
-        // 2. Initial ground distance to TARGET
+        // ground distance to TARGET
         double targetGroundDist = Math.sqrt(dx * dx + dz * dz);
         double endAngleRad = Math.toRadians(endAngle);
 
-        // 3. WRIST DECOUPLING: Step backward from target to find the wrist joint center
+        // target to find the wrist joint center
         double wristGroundDist = targetGroundDist - (lengthClaw * Math.cos(endAngleRad));
         double wristY = dy - (lengthClaw * Math.sin(endAngleRad)); // Using dy relative to origin
 
@@ -160,21 +160,19 @@ public class TestingOP extends LinearOpMode {
         // Angle to the wrist from horizontal
         Theta = Math.atan2(wristY, wristGroundDist);
 
-        // 5. Correct absolute forearm angle (subtracting PI)
+        //  Correct absolute forearm angle (subtracting PI)
         double forearmAngleAbs = (Theta + angleA + angleB) - Math.toRadians(180);
 
-        // 6. Calculate required claw joint angle to maintain the desired endAngle
-        // Wrist Joint Angle = Desired Absolute Angle - Current Forearm Absolute Angle
+        //  Calculate required claw joint angle to for correct endAngle
         clawAngle = endAngleRad - forearmAngleAbs;
 
-        // --- Servo Mappings ---
-        R.setPosition((Math.toRadians(90) + angleR) / Math.PI - 0.25);
+        // Servo Mappings
+        R.setPosition((Math.toRadians(90) + angleR) / Math.PI - 0.25);//arbitrary number keeps the base roughly centered
 
         servoBInput = (angleB / Math.PI);
-        servoAInput = (Theta + angleA) / Math.toRadians(270); // Keeping your arbitrary mounting numbers
+        servoAInput = (Theta + angleA) / Math.toRadians(270);
 
-        // You may need to tweak the sign or offset of servoCInput depending on how your wrist servo is physically mounted
-        servoCInput = Math.abs(clawAngle)/ Math.toRadians(183); // +0.5 assumes 90 degrees is the straight/neutral position
+        servoCInput = Math.abs(clawAngle)/ Math.toRadians(180);
 
         Amove = true;
         Bmove = true;
